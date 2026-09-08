@@ -1,8 +1,10 @@
-# Mi Fitness
+# Mi Fitness（存档镜像）
 
-小米运动健康 SDK， 通过亲友列表获取其他账号的的心率、睡眠、步数等健康数据。
+小米运动健康 SDK，通过亲友列表获取其他账号的心率、睡眠、步数等健康数据。
 
 > **⚠️ 仅供学习与测试使用。** API 端点可能随版本更新而变化。
+>
+> **📦 本仓库为存档镜像**：原仓库 `MistEO/MiSDK` 已从 GitHub 删除，此仓库用于保留源码副本。全部代码与提交历史均来自原作者 [Misty02600](https://github.com/MistEO)，请尊重原作者版权与 GPL-3.0 许可。
 
 ## 安装
 
@@ -15,7 +17,7 @@ uv add mi-fitness
 从源码安装：
 
 ```bash
-git clone https://github.com/MistEO/MiSDK.git && cd MiSDK
+git clone https://github.com/wenxixixi-miao/mi-fitness.git && cd mi-fitness
 uv sync
 ```
 

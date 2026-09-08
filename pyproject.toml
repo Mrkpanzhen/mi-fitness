@@ -14,9 +14,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/MistEO/MiSDK"
-Issues = "https://github.com/MistEO/MiSDK/issues"
-Repository = "https://github.com/MistEO/MiSDK.git"
+Homepage = "https://github.com/wenxixixi-miao/mi-fitness"
+Issues = "https://github.com/wenxixixi-miao/mi-fitness/issues"
+Repository = "https://github.com/wenxixixi-miao/mi-fitness.git"
 
 [project.scripts]
 mi-fitness-login = "mi_fitness.cli:main"
