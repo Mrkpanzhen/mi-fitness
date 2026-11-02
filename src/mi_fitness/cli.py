@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+from collections.abc import Sequence
 from pathlib import Path
-
-import qrcode
-import qrcode.constants
 
 from mi_fitness.auth import XiaomiAuth
 from mi_fitness.exceptions import AuthError
@@ -16,6 +15,14 @@ TOKEN_FILE = Path("token.json")
 
 def _print_qr_to_terminal(data: str) -> None:
     """用 Unicode 半块字符将二维码紧凑渲染到终端。"""
+    try:
+        import qrcode
+        import qrcode.constants
+    except ImportError as e:
+        raise RuntimeError(
+            "终端二维码渲染需要 qrcode，请安装：pip install 'mi-fitness[cli]'"
+        ) from e
+
     qr = qrcode.QRCode(border=1, error_correction=qrcode.constants.ERROR_CORRECT_L)
     qr.add_data(data)
     qr.make(fit=True)
@@ -43,7 +50,9 @@ def _print_qr_to_terminal(data: str) -> None:
         print("".join(line))
 
 
-async def _qr_login() -> None:
+async def _qr_login(token_path: Path | str | None = None) -> None:
+    path = Path(token_path) if token_path is not None else TOKEN_FILE
+
     async def show_qr(qr_image_url: str, login_url: str) -> None:
         print("\n📱 请用小米账号 APP 扫描二维码登录\n")
         if login_url:
@@ -60,14 +69,37 @@ async def _qr_login() -> None:
             print(f"❌ 扫码登录失败: {e}")
             raise
 
-        auth.save_token(TOKEN_FILE)
+        auth.save_token(path)
         print(f"✅ 扫码登录成功！user_id = {auth.token.user_id}")
-        print(f"   Token 已保存至 {TOKEN_FILE.resolve()}")
+        print(f"   Token 已保存至 {path.resolve()}")
 
 
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="mi-fitness-login",
+        description="小米运动健康二维码登录工具",
+    )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="qr-login",
+        choices=("qr-login",),
+        help="登录方式（目前仅支持 qr-login，可省略）",
+    )
+    parser.add_argument(
+        "--token",
+        type=Path,
+        default=TOKEN_FILE,
+        metavar="PATH",
+        help="token 保存路径（默认 token.json）",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
     """CLI 入口。"""
-    asyncio.run(_qr_login())
+    args = _build_parser().parse_args(argv)
+    asyncio.run(_qr_login(args.token))
 
 
 if __name__ == "__main__":

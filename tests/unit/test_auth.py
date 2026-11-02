@@ -228,11 +228,307 @@ async def test_qr_login_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
             '&&&START&&&{"qr":"https://example.com/qr.png","lp":"https://example.com/poll","timeout":0}'
         )
     )
+    http.request_without_retry = AsyncMock(return_value=_http_response("", status_code=500))
+    monkeypatch.setattr(qr_module, "async_sleep", AsyncMock())
     time_values = iter([0.0, 0.0, 1.0])
     monkeypatch.setattr(qr_module.time, "time", lambda: next(time_values))
 
     with pytest.raises(AuthError, match="二维码扫码超时"):
         await qr_module.login_qr(http, AuthToken(), max_wait=0)
+
+
+async def test_qr_login_extracts_credentials_after_success() -> None:
+    http = MagicMock()
+    http.get = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"qr":"https://example.com/qr.png","lp":"https://example.com/poll","timeout":60}'
+        )
+    )
+    http.request_without_retry = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"ssecurity":"sec","userId":"42","passToken":"pass","cUserId":"cid"}'
+        )
+    )
+    token = AuthToken()
+
+    await qr_module.login_qr(http, token)
+
+    assert token.ssecurity == "sec"
+    assert token.user_id == "42"
+    assert token.pass_token == "pass"
+    assert token.c_user_id == "cid"
+
+
+async def test_qr_login_raises_auth_error_for_business_failure() -> None:
+    http = MagicMock()
+    http.get = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"qr":"https://example.com/qr.png","lp":"https://example.com/poll","timeout":60}'
+        )
+    )
+    http.request_without_retry = AsyncMock(
+        return_value=_http_response('&&&START&&&{"code":70001,"desc":"二维码已过期"}')
+    )
+
+    with pytest.raises(AuthError, match="二维码登录失败"):
+        await qr_module.login_qr(http, AuthToken())
+
+
+async def test_qr_login_raises_auth_error_when_ssecurity_missing() -> None:
+    http = MagicMock()
+    http.get = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"qr":"https://example.com/qr.png","lp":"https://example.com/poll","timeout":60}'
+        )
+    )
+    http.request_without_retry = AsyncMock(
+        return_value=_http_response('&&&START&&&{"userId":"42","desc":"登录未完成"}')
+    )
+
+    with pytest.raises(AuthError, match="登录凭证提取失败"):
+        await qr_module.login_qr(http, AuthToken())
+
+
+async def test_qr_login_invokes_callback() -> None:
+    http = MagicMock()
+    http.get = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"qr":"https://example.com/qr.png",'
+            '"loginUrl":"https://example.com/login",'
+            '"lp":"https://example.com/poll","timeout":60}'
+        )
+    )
+    http.request_without_retry = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"ssecurity":"sec","userId":"42","passToken":"pass","cUserId":"cid"}'
+        )
+    )
+    callback = AsyncMock()
+
+    await qr_module.login_qr(http, AuthToken(), qr_callback=callback)
+
+    callback.assert_awaited_once_with("https://example.com/qr.png", "https://example.com/login")
+
+
+async def test_qr_login_retries_after_non_200_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    http = MagicMock()
+    http.get = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"qr":"https://example.com/qr.png","lp":"https://example.com/poll","timeout":60}'
+        )
+    )
+    http.request_without_retry = AsyncMock(
+        side_effect=[
+            _http_response("", status_code=503),
+            _http_response(
+                '&&&START&&&{"ssecurity":"sec","userId":"42","passToken":"pass","cUserId":"cid"}'
+            ),
+        ]
+    )
+    monkeypatch.setattr(qr_module, "async_sleep", AsyncMock())
+    token = AuthToken()
+
+    await qr_module.login_qr(http, token)
+
+    assert token.ssecurity == "sec"
+    assert http.request_without_retry.await_count == 2
+
+
+async def test_qr_login_retries_after_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    http = MagicMock()
+    http.get = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"qr":"https://example.com/qr.png","lp":"https://example.com/poll","timeout":60}'
+        )
+    )
+    http.request_without_retry = AsyncMock(
+        side_effect=[
+            httpx.ReadTimeout("poll timeout"),
+            _http_response(
+                '&&&START&&&{"ssecurity":"sec","userId":"42","passToken":"pass","cUserId":"cid"}'
+            ),
+        ]
+    )
+    token = AuthToken()
+
+    await qr_module.login_qr(http, token)
+
+    assert token.ssecurity == "sec"
+
+
+async def test_qr_login_retries_after_request_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    http = MagicMock()
+    http.get = AsyncMock(
+        return_value=_http_response(
+            '&&&START&&&{"qr":"https://example.com/qr.png","lp":"https://example.com/poll","timeout":60}'
+        )
+    )
+    http.request_without_retry = AsyncMock(
+        side_effect=[
+            httpx.ConnectError("network down"),
+            _http_response(
+                '&&&START&&&{"ssecurity":"sec","userId":"42","passToken":"pass","cUserId":"cid"}'
+            ),
+        ]
+    )
+    monkeypatch.setattr(qr_module, "async_sleep", AsyncMock())
+    token = AuthToken()
+
+    await qr_module.login_qr(http, token)
+
+    assert token.ssecurity == "sec"
+
+
+async def test_login_password_success_clears_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth = _make_auth()
+    get_login_page = AsyncMock(return_value=("sign", "callback"))
+    submit_login = AsyncMock()
+    sts_exchange = AsyncMock()
+    monkeypatch.setattr(auth_manager._pwd, "get_login_page", get_login_page)
+    monkeypatch.setattr(auth_manager._pwd, "submit_login", submit_login)
+    monkeypatch.setattr(auth_manager._sts, "sts_exchange", sts_exchange)
+
+    token = await auth.login()
+
+    assert token is auth.token
+    get_login_page.assert_awaited_once_with(auth._http)
+    submit_login.assert_awaited_once()
+    sts_exchange.assert_awaited_once_with(auth._http, auth.token)
+    assert auth._password == ""
+
+
+async def test_login_missing_credentials_raises() -> None:
+    with pytest.raises(AuthError, match="用户名和密码不能为空"):
+        await XiaomiAuth().login()
+
+
+async def test_login_device_untrusted_uses_verification_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auth = _make_auth()
+    monkeypatch.setattr(auth_manager._pwd, "get_login_page", AsyncMock(return_value=("s", "c")))
+    monkeypatch.setattr(
+        auth_manager._pwd,
+        "submit_login",
+        AsyncMock(side_effect=DeviceUntrustedError("需要短信验证")),
+    )
+    auth.send_verification_code = AsyncMock(return_value="191******54")  # type: ignore[method-assign]
+    auth.login_with_verification_code = AsyncMock()  # type: ignore[method-assign]
+    handler = AsyncMock(return_value="123456")
+
+    token = await auth.login(verification_code_handler=handler)
+
+    assert token is auth.token
+    handler.assert_awaited_once_with("191******54")
+    auth.login_with_verification_code.assert_awaited_once_with("123456")
+
+
+async def test_login_qr_success_calls_sts(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth = _make_auth()
+    login_qr = AsyncMock()
+    sts_exchange = AsyncMock()
+    monkeypatch.setattr(auth_manager._qr, "login_qr", login_qr)
+    monkeypatch.setattr(auth_manager._sts, "sts_exchange", sts_exchange)
+
+    token = await auth.login_qr()
+
+    assert token is auth.token
+    login_qr.assert_awaited_once()
+    sts_exchange.assert_awaited_once_with(auth._http, auth.token)
+
+
+async def test_login_with_verification_code_requires_ticket_token() -> None:
+    auth = _make_auth()
+
+    with pytest.raises(AuthError, match="请先调用 send_verification_code"):
+        await auth.login_with_verification_code("123456")
+
+
+async def test_login_with_verification_code_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth = _make_auth()
+    auth._ticket_token = "ticket-token"
+    monkeypatch.setattr(auth_manager._pwd, "get_login_page", AsyncMock(return_value=("s", "c")))
+    submit_ticket = AsyncMock()
+    sts_exchange = AsyncMock()
+    monkeypatch.setattr(auth_manager._pwd, "submit_ticket_auth", submit_ticket)
+    monkeypatch.setattr(auth_manager._sts, "sts_exchange", sts_exchange)
+
+    token = await auth.login_with_verification_code("123456")
+
+    assert token is auth.token
+    submit_ticket.assert_awaited_once()
+    sts_exchange.assert_awaited_once_with(auth._http, auth.token)
+    assert auth._ticket_token == ""
+    assert auth._password == ""
+
+
+async def test_save_and_load_token_roundtrip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    auth = _make_auth()
+    auth.token = AuthToken(
+        user_id="42",
+        c_user_id="cid",
+        service_token="service",
+        ssecurity="sec",
+        pass_token="pass",
+        device_id="an_device",
+    )
+    chmod = MagicMock()
+    monkeypatch.setattr(auth_manager.os, "chmod", chmod)
+    path = tmp_path / "token.json"
+
+    auth.save_token(path)
+
+    chmod.assert_called_once_with(path, 0o600)
+    loaded = XiaomiAuth.from_token(path)
+    assert loaded.token == auth.token
+    assert loaded._token_path == path
+
+
+async def test_save_token_ignores_chmod_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    auth = _make_auth()
+    monkeypatch.setattr(auth_manager.os, "chmod", MagicMock(side_effect=OSError("denied")))
+    path = tmp_path / "token.json"
+
+    auth.save_token(path)
+
+    assert path.exists()
+
+
+async def test_load_token_missing_or_invalid_raises(tmp_path: Path) -> None:
+    auth = XiaomiAuth()
+
+    with pytest.raises(AuthError, match="Token 文件不存在"):
+        auth.load_token(tmp_path / "missing.json")
+
+    invalid = tmp_path / "invalid.json"
+    invalid.write_text("{not-json", encoding="utf-8")
+    with pytest.raises(AuthError, match="Token 文件解析失败"):
+        auth.load_token(invalid)
+
+
+async def test_authenticated_and_refreshable_properties() -> None:
+    auth = XiaomiAuth()
+    assert auth.is_authenticated is False
+    assert auth.can_refresh is False
+
+    auth.token = AuthToken(
+        user_id="42",
+        pass_token="pass",
+        service_token="service",
+        ssecurity="sec",
+    )
+    assert auth.is_authenticated is True
+    assert auth.can_refresh is True
 
 
 async def test_login_passtoken_requires_non_empty_inputs() -> None:

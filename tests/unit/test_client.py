@@ -112,6 +112,13 @@ class TestFindRelative:
         member = await client.find_relative("妈")
         assert member.relative_note == "妈妈"
 
+    async def test_find_by_uid_string(self, mock_auth: Any) -> None:
+        client = _make_client(mock_auth)
+        client._request = AsyncMock(return_value=RELATIVE_LIST_RESPONSE)
+
+        member = await client.find_relative("1452722403")
+        assert member.relative_uid == 1452722403
+
     async def test_not_found_raises(self, mock_auth: Any) -> None:
         client = _make_client(mock_auth)
         client._request = AsyncMock(return_value=RELATIVE_LIST_RESPONSE)
@@ -320,6 +327,14 @@ class TestGetSharedDataTypes:
         params = client._request.call_args.kwargs["params"]
         assert params["type"] == 1
 
+    async def test_applied_shared_data_types(self, mock_auth: Any) -> None:
+        client = _make_client(mock_auth)
+        client._request = AsyncMock(return_value={"code": 0, "result": {"keys": ["goal", "steps"]}})
+
+        keys = await client.get_applied_shared_data_types(123)
+
+        assert keys == ["goal", "steps"]
+
 
 # endregion
 
@@ -473,6 +488,15 @@ class TestOtherAggregatedMetrics:
         assert params["key"] == "calories"
         assert params["limit"] == 7
         assert params["end_time"] - params["start_time"] == 86400 * 7 - 1
+
+    async def test_rejects_non_positive_days(self, mock_auth: Any) -> None:
+        client = _make_client(mock_auth)
+        client._request = AsyncMock()
+
+        with pytest.raises(ValueError, match="days"):
+            await client.get_steps(123, date(2024, 6, 4), days=0)
+
+        client._request.assert_not_awaited()
 
     async def test_returns_calories_valid_stand_and_intensity(self, mock_auth: Any) -> None:
         client = _make_client(mock_auth)
@@ -758,6 +782,33 @@ class TestGetDailySummary:
         assert summary.sleep is not None
         assert summary.steps is not None
 
+    async def test_get_latest_daily_summary_uses_china_timezone(self, mock_auth: Any) -> None:
+        """凌晨同步的数据应按中国时区归到当天，而不是 UTC 的前一天。"""
+        client = _make_client(mock_auth)
+        client.find_relative = AsyncMock(
+            return_value=type(
+                "Member",
+                (),
+                {
+                    "relative_uid": 123,
+                    "relative_note": "测试",
+                    # 2024-06-05 07:00:00 +08:00
+                    "latest_data_time": 1717542000,
+                },
+            )()
+        )
+        client._request = AsyncMock(
+            side_effect=[
+                AGGREGATED_HR_RESPONSE,
+                AGGREGATED_SLEEP_RESPONSE,
+                AGGREGATED_STEPS_RESPONSE,
+            ]
+        )
+
+        summary = await client.get_latest_daily_summary(123)
+
+        assert summary.date == "2024-06-05"
+
     async def test_get_latest_daily_summary_falls_back_to_latest_snapshot_time(
         self, mock_auth: Any
     ) -> None:
@@ -954,6 +1005,12 @@ class TestDateToTimestamps:
     def test_specific_date(self) -> None:
         start, end = MiHealthClient._date_to_timestamps(date(2024, 6, 4))
         assert end - start == 86399  # 23:59:59
+
+    def test_china_midnight_boundary(self) -> None:
+        start, end = MiHealthClient._date_to_timestamps(date(2024, 6, 5))
+        # 2024-06-05 00:00:00 +08:00 == 2024-06-04 16:00:00 UTC
+        assert start == 1717516800
+        assert end == start + 86399
 
     def test_today_default(self) -> None:
         start, end = MiHealthClient._date_to_timestamps()

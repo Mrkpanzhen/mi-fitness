@@ -91,3 +91,12 @@ class RetryAsyncClient(httpx.AsyncClient):
 
         # 理论上不会到达这里，保留兜底以满足类型检查。
         return await super().request(method, url, *args, **kwargs)
+
+    async def request_without_retry(
+        self, method: str, url: str | httpx.URL, *args: Any, **kwargs: Any
+    ) -> httpx.Response:
+        """发送单次请求，不套用重试逻辑。
+
+        适用于长轮询等自身已具备重试/等待语义的请求，避免多层退避叠加。
+        """
+        return await super().request(method, url, *args, **kwargs)

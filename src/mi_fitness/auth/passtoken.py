@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import os
 from urllib.parse import quote
-
-from loguru import logger
 
 from mi_fitness.const import SERVICE_SID_HEALTH, XIAOMI_LOGIN_URL
 from mi_fitness.exceptions import AuthError
@@ -15,6 +14,8 @@ from mi_fitness.http import RetryAsyncClient
 from mi_fitness.models import AuthToken
 
 from ._helpers import extract_service_token, parse_mi_response, set_cookie_for_domains
+
+logger = logging.getLogger(__name__)
 
 
 async def login_passtoken(
@@ -57,7 +58,7 @@ async def login_passtoken(
     }.items():
         set_cookie_for_domains(http, name, value)
 
-    logger.info("使用 passToken 换取凭证, userId={}", user_id)
+    logger.info("使用 passToken 换取凭证, userId=%s", user_id)
 
     # 调用 serviceLogin，带上 passToken cookie 会让服务端直接返回凭证
     resp = await http.get(
@@ -89,4 +90,4 @@ async def login_passtoken(
         full_url = f"{location}&clientSign={client_sign}"
         token.service_token = await extract_service_token(http, full_url)
 
-    logger.info("passToken 凭证交换完成, user_id={}", token.user_id)
+    logger.info("passToken 凭证交换完成, user_id=%s", token.user_id)

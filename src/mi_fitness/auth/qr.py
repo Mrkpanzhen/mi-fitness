@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections.abc import Awaitable, Callable
 
 import httpx
-from loguru import logger
 
 from mi_fitness.const import SERVICE_SID_HEALTH, STS_HEALTH_URL, XIAOMI_QR_LOGIN_URL
 from mi_fitness.exceptions import AuthError
@@ -15,6 +15,8 @@ from mi_fitness.http import RetryAsyncClient
 from mi_fitness.models import AuthToken
 
 from ._helpers import async_sleep, extract_credentials, parse_mi_response
+
+logger = logging.getLogger(__name__)
 
 
 async def login_qr(
@@ -67,17 +69,17 @@ async def login_qr(
         await qr_callback(qr_image_url, login_url)
     else:
         logger.info("请使用小米账号 APP 扫描二维码登录")
-        logger.info("二维码图片: {}", qr_image_url)
+        logger.info("二维码图片: %s", qr_image_url)
         if login_url:
-            logger.info("或在浏览器打开: {}", login_url)
+            logger.info("或在浏览器打开: %s", login_url)
 
     # Step 2: 长轮询等待扫码
     effective_timeout = min(float(qr_timeout), max_wait)
     poll_request_timeout = 60.0
     logger.debug(
-        "二维码长轮询开始: effective_timeout={}s, request_timeout={}s",
-        f"{effective_timeout:.0f}",
-        f"{poll_request_timeout:.0f}",
+        "二维码长轮询开始: effective_timeout=%.0fs, request_timeout=%.0fs",
+        effective_timeout,
+        poll_request_timeout,
     )
     start_time = time.time()
 
@@ -87,9 +89,9 @@ async def login_qr(
             raise AuthError(f"二维码扫码超时（{effective_timeout:.0f}s），请重新获取")
 
         try:
-            # 直接调用 httpx.AsyncClient.get 绕过 RetryAsyncClient 的重试
-            resp = await httpx.AsyncClient.request(
-                http, "GET", long_polling_url, timeout=poll_request_timeout
+            # 长轮询自带等待语义，使用不重试的单次请求避免退避叠加
+            resp = await http.request_without_retry(
+                "GET", long_polling_url, timeout=poll_request_timeout
             )
         except (asyncio.CancelledError, KeyboardInterrupt):
             logger.warning("二维码登录轮询被中断")
@@ -98,19 +100,24 @@ async def login_qr(
             logger.debug("长轮询超时，继续等待...")
             continue
         except httpx.RequestError as e:
-            logger.warning("长轮询请求失败: {}", e)
+            logger.warning("长轮询请求失败: %s", e)
             await async_sleep(poll_interval)
             continue
 
         if resp.status_code != 200:
-            logger.debug("长轮询返回 {}，继续等待...", resp.status_code)
+            logger.debug("长轮询返回 %s，继续等待...", resp.status_code)
             await async_sleep(poll_interval)
             continue
 
         break
 
     data = parse_mi_response(resp.text)
-    logger.info("扫码成功, userId={}", data.get("userId"))
+    code = data.get("code")
+    if code is not None and str(code) != "0":
+        message = data.get("message") or data.get("desc") or "登录未完成"
+        raise AuthError(f"二维码登录失败 (code={code}): {message}")
 
-    # Step 3: 提取凭证
+    logger.info("扫码成功, userId=%s", data.get("userId"))
+
+    # Step 3: 提取凭证（缺少 ssecurity 时由 extract_credentials 抛出 AuthError）
     await extract_credentials(http, data, token)

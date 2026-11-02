@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
-
-from loguru import logger
 
 from mi_fitness.const import (
     ALL_SHARED_DATA_TYPES,
@@ -37,6 +36,8 @@ from mi_fitness.models import (
 if TYPE_CHECKING:
     from mi_fitness.client.api import MiHealthClient
 
+logger = logging.getLogger(__name__)
+
 _DEFAULT_TOPICS = ("abnormal_event",)
 
 
@@ -56,17 +57,21 @@ async def get_relatives(client: MiHealthClient) -> list[FamilyMember]:
     resp = await client._request("GET", RELATIVES_LIST_PATH)
     parsed = RelativeListResponse(**resp)
     members = parsed.relatives
-    logger.info("获取到 {} 位亲友", len(members))
+    logger.info("获取到 %d 位亲友", len(members))
     return members
 
 
 async def find_relative(client: MiHealthClient, keyword: str | int) -> FamilyMember:
-    """按备注名或 UID 查找亲友。"""
+    """按备注名或 UID 查找亲友。
+
+    ``keyword`` 为数字字符串时同样按 UID 精确匹配，便于从命令行/配置中读取 ID。
+    """
     members = await get_relatives(client)
+    keyword_text = str(keyword)
     for m in members:
-        if (isinstance(keyword, int) and m.relative_uid == keyword) or (
-            isinstance(keyword, str) and keyword.lower() in m.relative_note.lower()
-        ):
+        if keyword_text == str(m.relative_uid):
+            return m
+        if isinstance(keyword, str) and keyword.lower() in m.relative_note.lower():
             return m
     raise FamilyMemberNotFoundError(f"未找到亲友: {keyword}")
 
@@ -105,7 +110,7 @@ async def invite_relative(
 
     resp = await client._request("POST", RELATIVES_SEND_INVITE_PATH, params=params)
     parsed = InviteResponse(**resp)
-    logger.info("邀请发送 {} (uid={})", "成功" if parsed.success else "失败", relative_uid)
+    logger.info("邀请发送 %s (uid=%s)", "成功" if parsed.success else "失败", relative_uid)
     return parsed.success
 
 
@@ -157,7 +162,7 @@ async def _operate_invite(
     parsed = OperateInviteResponse(**resp)
     op_name = "同意" if operate == 1 else "拒绝"
     logger.info(
-        "{}邀请 {} (invite_id={})",
+        "%s邀请 %s (invite_id=%s)",
         op_name,
         "成功" if parsed.success else "失败",
         invite_id,
@@ -173,7 +178,7 @@ async def delete_relative(client: MiHealthClient, relative_uid: int) -> bool:
         params={"relative_uid": relative_uid},
     )
     parsed = DeleteRelativeResponse(**resp)
-    logger.info("删除亲友 {} (uid={})", "成功" if parsed.success else "失败", relative_uid)
+    logger.info("删除亲友 %s (uid=%s)", "成功" if parsed.success else "失败", relative_uid)
     return parsed.success
 
 
@@ -181,7 +186,7 @@ async def get_invite_link_id(client: MiHealthClient) -> int:
     """获取二维码邀请链接 ID。"""
     resp = await client._request("GET", RELATIVES_GET_INVITE_ID_PATH)
     parsed = InviteUniqueIdResponse(**resp)
-    logger.debug("获取邀请 ID: {}", parsed.invite_link_id)
+    logger.debug("获取邀请 ID: %s", parsed.invite_link_id)
     return parsed.invite_link_id
 
 
@@ -211,11 +216,11 @@ async def get_applied_shared_data_types(
         RELATIVES_GET_APPLIED_SHARED_TYPES_PATH,
         params={"relative_uid": relative_uid},
     )
-    return resp.get("result", {}).get("keys", [])
+    return SharedDataTypesResponse(**resp).keys
 
 
 async def get_family_members(client: MiHealthClient) -> list[dict[str, Any]]:
-    """获取家庭成员列表。"""
+    """获取家庭成员列表（接口字段随版本变化，保留原始 dict 以兼容新字段）。"""
     resp = await client._request("GET", RELATIVES_GET_FAMILY_MEMBER_PATH)
     parsed = FamilyMemberResponse(**resp)
     return parsed.family_user_list
@@ -226,7 +231,7 @@ async def get_topic_subscriptions(
     relative_uid: int,
     topics: list[str] | None = None,
 ) -> dict[str, Any]:
-    """获取亲友的消息订阅状态。"""
+    """获取亲友的消息订阅状态（接口字段随版本变化，保留原始 dict）。"""
     topic_list = list(topics or _DEFAULT_TOPICS)
     resp = await client._request(
         "GET",

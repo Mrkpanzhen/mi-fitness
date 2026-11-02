@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from typing import TYPE_CHECKING
-
-from loguru import logger
 
 from mi_fitness.const import DEFAULT_LOGIN_USER_AGENT
 from mi_fitness.exceptions import AuthError
@@ -15,6 +14,8 @@ from mi_fitness.http import RetryAsyncClient
 
 if TYPE_CHECKING:
     from mi_fitness.models import AuthToken
+
+logger = logging.getLogger(__name__)
 
 _COOKIE_DOMAINS = ("xiaomi.com", "mi.com")
 
@@ -105,19 +106,32 @@ async def extract_credentials(
         http: HTTP 客户端。
         data: 登录接口返回的 JSON dict。
         token: 要写入的 AuthToken 实例。
+
+    Raises:
+        AuthError: 响应缺少 ``ssecurity``（通常是二维码过期或登录未完成）。
     """
-    token.ssecurity = data["ssecurity"]
+    ssecurity = data.get("ssecurity")
+    if not isinstance(ssecurity, str) or not ssecurity:
+        message = (
+            data.get("message")
+            or data.get("desc")
+            or data.get("description")
+            or "响应中缺少 ssecurity"
+        )
+        raise AuthError(f"登录凭证提取失败: {message}")
+
+    token.ssecurity = ssecurity
     token.user_id = str(data.get("userId", ""))
-    token.pass_token = data.get("passToken", "")
-    token.c_user_id = data.get("cUserId", "")
+    token.pass_token = str(data.get("passToken") or "")
+    token.c_user_id = str(data.get("cUserId") or "")
 
     location = data.get("location", "")
-    if location:
+    if isinstance(location, str) and location:
         service_token = await extract_service_token(http, location)
         token.service_token = service_token
 
     logger.debug(
-        "凭证提取完成, ssecurity={}, user_id={}",
+        "凭证提取完成, ssecurity=%s, user_id=%s",
         token.ssecurity[:8] + "...",
         token.user_id,
     )

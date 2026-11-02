@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from typing import Any
-
-from loguru import logger
 
 from mi_fitness.const import (
     APP_NAME,
@@ -24,6 +23,8 @@ from mi_fitness.http import RetryAsyncClient
 from mi_fitness.models import AuthToken
 
 from ._helpers import extract_credentials, normalize_captcha_url, parse_mi_response
+
+logger = logging.getLogger(__name__)
 
 
 # region 登录页
@@ -236,7 +237,7 @@ async def send_ticket(
         error_prefix="验证码发送失败",
     )
 
-    logger.debug("验证码已发送, vCodeLen={}", data.get("data", {}).get("vCodeLen"))
+    logger.debug("验证码已发送, vCodeLen=%s", data.get("data", {}).get("vCodeLen"))
 
 
 async def get_phone_info(
@@ -272,7 +273,7 @@ async def get_phone_info(
 
 async def fetch_captcha_image(http: RetryAsyncClient, captcha_url: str) -> bytes:
     """下载图形验证码图片。"""
-    logger.debug("下载图形验证码: {}", captcha_url)
+    logger.debug("下载图形验证码: %s", captcha_url)
     resp = await http.get(captcha_url)
     resp.raise_for_status()
     return resp.content

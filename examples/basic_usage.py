@@ -51,9 +51,13 @@ async def main() -> None:
         if latest.heart_rate:
             print(f"  最新心率: {latest.heart_rate.bpm} bpm")
         if latest.sleep:
-            print(f"  最新睡眠: {latest.sleep.total_duration}分钟 评分{latest.sleep.sleep_score}/100")
+            print(
+                f"  最新睡眠: {latest.sleep.total_duration}分钟 评分{latest.sleep.sleep_score}/100"
+            )
         if latest.steps:
-            print(f"  最新步数: {latest.steps.steps}步 / {latest.steps.distance}米 / {latest.steps.calories}卡")
+            print(
+                f"  最新步数: {latest.steps.steps}步 / {latest.steps.distance}米 / {latest.steps.calories}卡"
+            )
         if latest.weight:
             print(f"  最新体重: {latest.weight.weight}kg BMI {latest.weight.bmi}")
 

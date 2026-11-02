@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from datetime import UTC, date, datetime, timedelta, timezone
+from datetime import date, datetime
 from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import ValidationError
 
 from mi_fitness.const import (
+    CN_TZ,
     DATA_KEY_BLOOD_PRESSURE,
     DATA_KEY_CALORIES,
     DATA_KEY_GOAL,
@@ -173,21 +174,30 @@ async def get_fitness_data(
 
 
 # region 便捷方法
+def _today() -> date:
+    """返回中国标准时间下的今天，避免受运行机器本地时区影响。"""
+    return datetime.now(tz=CN_TZ).date()
+
+
 def _date_to_timestamps(query_date: date | None = None) -> tuple[int, int]:
-    """将日期转换为当日 00:00 ~ 23:59:59 的时间戳。"""
-    d = query_date or date.today()
-    tz = timezone(timedelta(hours=8))
-    start = int(datetime(d.year, d.month, d.day, tzinfo=tz).timestamp())
+    """将日期转换为中国标准时间当日 00:00 ~ 23:59:59 的时间戳。"""
+    d = query_date or _today()
+    start = int(datetime(d.year, d.month, d.day, tzinfo=CN_TZ).timestamp())
     end = start + 86400 - 1
     return start, end
 
 
 def _build_window_timestamps(query_date: date | None, days: int) -> tuple[int, int, int]:
-    """构造以 ``query_date`` 为结束日的查询窗口。"""
-    window_days = max(days, 1)
+    """构造以 ``query_date`` 为结束日的查询窗口。
+
+    Raises:
+        ValueError: ``days`` 小于 1。
+    """
+    if days < 1:
+        raise ValueError("days 必须大于等于 1")
     _, end = _date_to_timestamps(query_date)
-    start = end - 86400 * window_days + 1
-    return start, end, window_days
+    start = end - 86400 * days + 1
+    return start, end, days
 
 
 def _parse_series_items(
@@ -486,7 +496,7 @@ async def get_daily_summary(
     query_date: date | None = None,
 ) -> DailySummary:
     """获取亲友的每日综合健康摘要（并发请求心率、睡眠、步数）。"""
-    d = query_date or date.today()
+    d = query_date or _today()
 
     heart_rate, sleep, steps = await asyncio.gather(
         _get_first_shared_or_none(lambda: get_heart_rate(client, relative_uid, d)),
@@ -507,15 +517,19 @@ async def get_latest_daily_summary(
     client: MiHealthClient,
     relative_uid: int,
 ) -> DailySummary:
-    """获取亲友最近一次有同步数据的每日综合健康摘要。"""
+    """获取亲友最近一次有同步数据的每日综合健康摘要。
+
+    同步时间戳会先换算到中国标准时间（UTC+8）再取自然日，
+    避免凌晨同步的数据被归到 UTC 的前一天。
+    """
     member = await client.find_relative(relative_uid)
-    query_date = date.today()
+    query_date = _today()
     if member.latest_data_time > 0:
-        query_date = datetime.fromtimestamp(member.latest_data_time, tz=UTC).date()
+        query_date = datetime.fromtimestamp(member.latest_data_time, tz=CN_TZ).date()
     else:
         latest = await get_latest_data(client, relative_uid)
         if latest.updated_time > 0:
-            query_date = datetime.fromtimestamp(latest.updated_time, tz=UTC).date()
+            query_date = datetime.fromtimestamp(latest.updated_time, tz=CN_TZ).date()
     return await get_daily_summary(client, relative_uid, query_date)
 
 

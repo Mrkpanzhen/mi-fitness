@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from mi_fitness.const import (
     ALL_SHARED_DATA_TYPES,
+    CN_TZ,
+    DATA_KEYS,
     HEALTH_API_BASE,
     RELATIVES_AGGREGATED_DATA_PATH,
     RELATIVES_DELETE_PATH,
@@ -58,6 +62,16 @@ class TestSharedDataTypes:
 
     def test_no_duplicates(self) -> None:
         assert len(ALL_SHARED_DATA_TYPES) == len(set(ALL_SHARED_DATA_TYPES))
+
+    def test_shared_types_match_data_keys(self) -> None:
+        assert ALL_SHARED_DATA_TYPES == DATA_KEYS
+
+
+class TestTimezone:
+    """时区常量测试。"""
+
+    def test_china_timezone_is_utc_plus_8(self) -> None:
+        assert CN_TZ.utcoffset(None) == timedelta(hours=8)
 
 
 class TestVerifyTypes:

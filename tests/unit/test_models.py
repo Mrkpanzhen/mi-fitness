@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 
+from mi_fitness.const import DATA_KEYS
 from mi_fitness.models import (
     AggregatedDataItem,
     AggregatedDataResponse,
@@ -802,6 +803,34 @@ class TestCheckNewMsgResponse:
     def test_single_dict_result_is_tolerated(self) -> None:
         resp = CheckNewMsgResponse(code=0, result={"module": 1, "is_new": "true"})  # type: ignore[arg-type]
         assert resp.has_new(1) is True
+
+
+# endregion
+
+
+# region 数据类型注册表
+class TestDataKeysRegistry:
+    def test_snapshot_fields_match_data_keys(self) -> None:
+        snapshot_fields = set(LatestDataSnapshot.model_fields) - {"updated_time", "extras"}
+        assert set(DATA_KEYS) == snapshot_fields
+
+    def test_available_keys_follow_registry_order(self) -> None:
+        snapshot = LatestDataSnapshot()
+        assert snapshot.available_keys == []
+
+        snapshot.steps = StepData(steps=100)
+        snapshot.goal = GoalData()
+        assert snapshot.available_keys == ["goal", "steps"]
+
+    def test_unknown_keys_are_kept_in_extras(self) -> None:
+        snapshot = LatestDataSnapshot.from_items(
+            [LatestDataItem(key="unknown_metric", value='{"x": 1}')]
+        )
+        assert snapshot.available_keys == ["unknown_metric"]
+        assert snapshot.extras["unknown_metric"] == {"x": 1}
+
+
+# endregion
 
 
 # endregion

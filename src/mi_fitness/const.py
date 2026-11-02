@@ -1,5 +1,14 @@
 """常量与配置。"""
 
+from datetime import timedelta, timezone
+
+# region 时区
+# 小米健康接口按中国标准时间（UTC+8）切分自然日，且中国自 1991 年起不再使用夏令时，
+# 因此固定偏移即可，无需依赖 IANA 时区数据库（Windows 默认不包含）。
+CN_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
+# endregion
+
+
 # region 小米账号 OAuth 端点
 XIAOMI_LOGIN_URL = "https://account.xiaomi.com/pass/serviceLogin"
 XIAOMI_LOGIN_AUTH_URL = "https://account.xiaomi.com/pass/serviceLoginAuth2"
@@ -62,21 +71,24 @@ DATA_KEY_INTENSITY = "intensity"
 DATA_KEY_WEIGHT = "weight"
 DATA_KEY_SPO2 = "spo2"
 DATA_TAG_DAILY_REPORT = "daily_report"
+
+# 全部受支持的数据类型（顺序即公开 API 中的展示顺序）。
+DATA_KEYS: tuple[str, ...] = (
+    DATA_KEY_GOAL,
+    DATA_KEY_HEART_RATE,
+    DATA_KEY_SLEEP,
+    DATA_KEY_BLOOD_PRESSURE,
+    DATA_KEY_STEPS,
+    DATA_KEY_CALORIES,
+    DATA_KEY_VALID_STAND,
+    DATA_KEY_INTENSITY,
+    DATA_KEY_WEIGHT,
+    DATA_KEY_SPO2,
+)
 # endregion
 
 # region 可共享数据类型（send_invite 的 auth_data 全量）
-ALL_SHARED_DATA_TYPES: tuple[str, ...] = (
-    "goal",
-    "heart_rate",
-    "sleep",
-    "blood_pressure",
-    "steps",
-    "calories",
-    "valid_stand",
-    "intensity",
-    "weight",
-    "spo2",
-)
+ALL_SHARED_DATA_TYPES: tuple[str, ...] = DATA_KEYS
 # endregion
 
 # region verify_userinfo_by_id 的 verify_type 枚举

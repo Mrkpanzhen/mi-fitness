@@ -33,6 +33,13 @@ format:
 check:
     uv run basedpyright
 
+# 全量校验（lint + 格式 + 类型 + 测试）
+verify:
+    uv run ruff check src/ tests/unit/ examples/
+    uv run ruff format --check src/ tests/unit/ examples/
+    uv run basedpyright src/ tests/unit/
+    uv run pytest
+
 # 更新 pre-commit hooks
 update:
     uv run prek auto-update

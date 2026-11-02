@@ -140,6 +140,16 @@ async def test_extract_credentials_populates_token_and_service_token(
 
 
 @pytest.mark.asyncio
+async def test_extract_credentials_raises_auth_error_without_ssecurity() -> None:
+    with pytest.raises(AuthError, match="登录凭证提取失败"):
+        await auth_helpers.extract_credentials(
+            MagicMock(),
+            {"userId": "1", "desc": "二维码已过期"},
+            AuthToken(),
+        )
+
+
+@pytest.mark.asyncio
 async def test_sts_exchange_uses_device_id_and_accepts_ok_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

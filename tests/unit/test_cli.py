@@ -62,10 +62,23 @@ async def test_qr_login_saves_token(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_main_runs_without_args(monkeypatch: pytest.MonkeyPatch) -> None:
     called = False
 
-    async def fake_qr_login() -> None:
+    async def fake_qr_login(token_path: Path | str | None = None) -> None:
         nonlocal called
         called = True
+        assert token_path == cli.TOKEN_FILE
 
     monkeypatch.setattr(cli, "_qr_login", fake_qr_login)
-    cli.main()
+    cli.main([])
     assert called
+
+
+def test_main_accepts_custom_token_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    received: list[Path | str | None] = []
+
+    async def fake_qr_login(token_path: Path | str | None = None) -> None:
+        received.append(token_path)
+
+    monkeypatch.setattr(cli, "_qr_login", fake_qr_login)
+    cli.main(["qr-login", "--token", "custom.json"])
+
+    assert received == [Path("custom.json")]

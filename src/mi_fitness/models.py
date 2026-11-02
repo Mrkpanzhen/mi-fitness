@@ -10,6 +10,20 @@ from typing import Any, TypeVar
 
 from pydantic import AliasChoices, BaseModel, Field, ValidationError, field_validator
 
+from mi_fitness.const import (
+    DATA_KEY_BLOOD_PRESSURE,
+    DATA_KEY_CALORIES,
+    DATA_KEY_GOAL,
+    DATA_KEY_HEART_RATE,
+    DATA_KEY_INTENSITY,
+    DATA_KEY_SLEEP,
+    DATA_KEY_SPO2,
+    DATA_KEY_STEPS,
+    DATA_KEY_VALID_STAND,
+    DATA_KEY_WEIGHT,
+    DATA_KEYS,
+)
+
 _ModelT = TypeVar("_ModelT", bound=BaseModel)
 
 
@@ -953,6 +967,20 @@ class DailySummary(BaseModel):
 
 
 # region 最新快照
+_SNAPSHOT_PARSERS: dict[str, Any] = {
+    DATA_KEY_GOAL: LatestDataItem.as_goal,
+    DATA_KEY_HEART_RATE: LatestDataItem.as_heart_rate,
+    DATA_KEY_SLEEP: LatestDataItem.as_sleep,
+    DATA_KEY_BLOOD_PRESSURE: LatestDataItem.as_blood_pressure,
+    DATA_KEY_STEPS: LatestDataItem.as_steps,
+    DATA_KEY_CALORIES: LatestDataItem.as_calories,
+    DATA_KEY_VALID_STAND: LatestDataItem.as_valid_stand,
+    DATA_KEY_INTENSITY: LatestDataItem.as_intensity,
+    DATA_KEY_WEIGHT: LatestDataItem.as_weight,
+    DATA_KEY_SPO2: LatestDataItem.as_spo2,
+}
+
+
 class LatestDataSnapshot(BaseModel):
     """最新健康快照。
 
@@ -983,21 +1011,9 @@ class LatestDataSnapshot(BaseModel):
         """从原始 data_list 构建类型化快照。"""
         payload: dict[str, Any] = {"updated_time": updated_time}
         extras: dict[str, dict[str, Any] | int | float] = {}
-        parsers = {
-            "goal": LatestDataItem.as_goal,
-            "heart_rate": LatestDataItem.as_heart_rate,
-            "sleep": LatestDataItem.as_sleep,
-            "blood_pressure": LatestDataItem.as_blood_pressure,
-            "steps": LatestDataItem.as_steps,
-            "calories": LatestDataItem.as_calories,
-            "valid_stand": LatestDataItem.as_valid_stand,
-            "intensity": LatestDataItem.as_intensity,
-            "weight": LatestDataItem.as_weight,
-            "spo2": LatestDataItem.as_spo2,
-        }
 
         for item in items:
-            parser = parsers.get(item.key)
+            parser = _SNAPSHOT_PARSERS.get(item.key)
             raw_value = item.parse_value()
             if parser is None:
                 extras[item.key] = raw_value
@@ -1025,19 +1041,7 @@ class LatestDataSnapshot(BaseModel):
     @property
     def available_keys(self) -> list[str]:
         """当前快照中可用的数据键。"""
-        known_keys = [
-            "goal",
-            "heart_rate",
-            "sleep",
-            "blood_pressure",
-            "steps",
-            "calories",
-            "valid_stand",
-            "intensity",
-            "weight",
-            "spo2",
-        ]
-        keys = [key for key in known_keys if getattr(self, key) is not None]
+        keys = [key for key in DATA_KEYS if getattr(self, key) is not None]
         keys.extend(sorted(self.extras))
         return keys
 

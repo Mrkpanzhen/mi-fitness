@@ -1,0 +1,8 @@
+# 统一换行符，避免 Windows 检出与 CI(Ubuntu) 的 ruff format 结果不一致
+* text=auto
+*.py text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.json text eol=lf

@@ -7,11 +7,12 @@ requires-python = ">=3.11"
 authors = [{ name = "Misty02600", email = "xiao02600@gmail.com" }]
 dependencies = [
     "httpx>=0.28.1",
-    "loguru>=0.7.3",
     "pydantic>=2.12.5",
-    "qrcode>=8.0",
     "tenacity>=9.0.0",
 ]
+
+[project.optional-dependencies]
+cli = ["qrcode>=8.0"]
 
 [project.urls]
 Homepage = "https://github.com/wenxixixi-miao/mi-fitness"
@@ -27,6 +28,7 @@ dev = [
     "commitizen>=4.1.0",
     "git-cliff>=2.11.0,<3.0.0",
     "prek>=0.2.0",
+    "qrcode>=8.0",
     "ruff>=0.14.13,<1.0.0",
     { include-group = "test" },
 ]

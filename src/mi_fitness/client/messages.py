@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
-
-from loguru import logger
 
 from mi_fitness.const import (
     MESSAGE_CHECK_NEW_PATH,
@@ -15,6 +14,8 @@ from mi_fitness.models import CheckNewMsgResponse, InviteMessage, MessageListRes
 
 if TYPE_CHECKING:
     from mi_fitness.client.api import MiHealthClient
+
+logger = logging.getLogger(__name__)
 
 
 async def get_invite_messages(
@@ -34,7 +35,7 @@ async def get_invite_messages(
     if pending_only:
         messages = [m for m in messages if m.is_pending]
     logger.debug(
-        "获取邀请消息: {}条 (待处理: {}条)",
+        "获取邀请消息: %d条 (待处理: %d条)",
         len(parsed.messages),
         sum(1 for m in parsed.messages if m.is_pending),
     )

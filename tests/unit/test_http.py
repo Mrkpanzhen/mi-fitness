@@ -81,3 +81,26 @@ async def test_retries_on_network_error_for_get() -> None:
 
     assert resp.status_code == 200
     assert call_count == 2
+
+
+async def test_request_without_retry_does_not_retry() -> None:
+    """长轮询等场景应能显式关闭重试。"""
+    call_count = 0
+
+    async def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        return httpx.Response(status_code=503, json={"message": "busy"})
+
+    transport = httpx.MockTransport(handler)
+    async with RetryAsyncClient(
+        transport=transport,
+        retry_attempts=3,
+        retry_wait_min=0.0,
+        retry_wait_max=0.0,
+        retry_wait_multiplier=0.0,
+    ) as client:
+        resp = await client.request_without_retry("GET", "https://example.com/poll")
+
+    assert resp.status_code == 503
+    assert call_count == 1

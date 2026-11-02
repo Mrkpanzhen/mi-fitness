@@ -6,12 +6,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Self, TypeVar
-
-from loguru import logger
 
 from mi_fitness.exceptions import (
     AuthError,
@@ -27,6 +26,8 @@ from . import password as _pwd
 from . import qr as _qr
 from . import sts as _sts
 from ._helpers import create_login_http
+
+logger = logging.getLogger(__name__)
 
 _MAX_CAPTCHA_RETRIES = 3
 _CaptchaStepT = TypeVar("_CaptchaStepT")
@@ -149,7 +150,7 @@ class XiaomiAuth:
 
         http = self._ensure_device_cookie()
 
-        logger.info("开始小米账号登录: {}", self.username)
+        logger.info("开始小米账号登录: %s", self.username)
 
         sign, callback = await _pwd.get_login_page(http)
 
@@ -175,7 +176,7 @@ class XiaomiAuth:
         await _sts.sts_exchange(http, self.token)
 
         self._password = ""
-        logger.info("登录成功, user_id={}", self.token.user_id)
+        logger.info("登录成功, user_id=%s", self.token.user_id)
         return self.token
 
     def save_token(self, path: Path | str) -> None:
@@ -187,8 +188,14 @@ class XiaomiAuth:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.token.model_dump_json(indent=2), encoding="utf-8")
+        try:
+            # token 内含长期有效的 passToken，尽量限制为仅当前用户可读写。
+            # Windows 上 chmod 只影响只读位，失败不影响主流程。
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
         self._token_path = path
-        logger.info("Token 已保存至 {}", path)
+        logger.info("Token 已保存至 %s", path)
 
     def load_token(self, path: Path | str) -> AuthToken:
         """从文件加载 token。
@@ -209,7 +216,7 @@ class XiaomiAuth:
             data = path.read_text(encoding="utf-8")
             self.token = AuthToken.model_validate_json(data)
             self._token_path = path
-            logger.info("Token 已从 {} 加载, user_id={}", path, self.token.user_id)
+            logger.info("Token 已从 %s 加载, user_id=%s", path, self.token.user_id)
             return self.token
         except Exception as e:
             raise AuthError(f"Token 文件解析失败: {e}") from e
@@ -242,7 +249,7 @@ class XiaomiAuth:
         if not self.can_refresh:
             raise TokenExpiredError("Token 已过期，且缺少 passToken 或 user_id，无法自动刷新")
 
-        logger.info("开始刷新登录凭证, user_id={}", self.token.user_id)
+        logger.info("开始刷新登录凭证, user_id=%s", self.token.user_id)
         try:
             token = await self.login_passtoken(
                 pass_token=self.token.pass_token,
@@ -255,7 +262,7 @@ class XiaomiAuth:
         if self._token_path is not None:
             self.save_token(self._token_path)
 
-        logger.info("登录凭证刷新成功, user_id={}", token.user_id)
+        logger.info("登录凭证刷新成功, user_id=%s", token.user_id)
         return token
 
     async def send_verification_code(
@@ -303,7 +310,7 @@ class XiaomiAuth:
         )
 
         self._ticket_token = ticket_token
-        logger.info("验证码已发送至 {}", phone)
+        logger.info("验证码已发送至 %s", phone)
         return phone
 
     async def login_with_verification_code(self, code: str) -> AuthToken:
@@ -332,7 +339,7 @@ class XiaomiAuth:
 
         self._password = ""
         self._ticket_token = ""
-        logger.info("短信验证码登录成功, user_id={}", self.token.user_id)
+        logger.info("短信验证码登录成功, user_id=%s", self.token.user_id)
         return self.token
 
     def __repr__(self) -> str:
@@ -378,7 +385,7 @@ class XiaomiAuth:
 
         await _sts.sts_exchange(http, self.token)
 
-        logger.info("二维码登录成功, user_id={}", self.token.user_id)
+        logger.info("二维码登录成功, user_id=%s", self.token.user_id)
         return self.token
 
     async def login_passtoken(
@@ -417,7 +424,7 @@ class XiaomiAuth:
 
         await _sts.sts_exchange(http, self.token)
 
-        logger.info("passToken 登录成功, user_id={}", self.token.user_id)
+        logger.info("passToken 登录成功, user_id=%s", self.token.user_id)
         return self.token
 
     # endregion

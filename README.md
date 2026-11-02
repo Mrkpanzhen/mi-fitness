@@ -5,6 +5,8 @@
 > **⚠️ 仅供学习与测试使用。** API 端点可能随版本更新而变化。
 >
 > **📦 本仓库为存档镜像**：原仓库 `MistEO/MiSDK` 已从 GitHub 删除，此仓库用于保留源码副本。全部代码与提交历史均来自原作者 [Misty02600](https://github.com/MistEO)，请尊重原作者版权与 GPL-3.0 许可。
+>
+> **🔧 本镜像在原代码基础上补充了时区处理、二维码登录错误处理、日志与 CLI 等健壮性修复**，详见提交历史。
 
 ## 安装
 
@@ -14,11 +16,30 @@ pip install mi-fitness
 uv add mi-fitness
 ```
 
+如需使用终端二维码登录 CLI，请安装 `cli` 附加依赖：
+
+```bash
+pip install "mi-fitness[cli]"
+# 或
+uv add "mi-fitness[cli]"
+```
+
 从源码安装：
 
 ```bash
 git clone https://github.com/wenxixixi-miao/mi-fitness.git && cd mi-fitness
 uv sync
+```
+
+### 日志
+
+SDK 使用标准库 `logging`，默认不输出日志。需要排查问题时按 logger 名称开启：
+
+```python
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("mi_fitness").setLevel(logging.DEBUG)
 ```
 
 ## 快速开始
@@ -57,6 +78,8 @@ CLI 一行命令登录：
 
 ```bash
 uv run python -m mi_fitness.cli qr-login
+# 或使用安装后的命令，并可自定义 token 路径
+mi-fitness-login --token token.json
 ```
 
 ### 查询数据
@@ -86,6 +109,8 @@ async def main():
 
 asyncio.run(main())
 ```
+
+> 所有日期参数均按中国标准时间（UTC+8）切分自然日；`get_latest_daily_summary` 会先把最近同步时间戳换算到 UTC+8，再查询对应日期。
 
 ### 亲友管理
 
