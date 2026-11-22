@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from mi_fitness.client import MiHealthClient
+from mi_fitness.client.data import MAX_QUERY_DAYS
 from mi_fitness.const import (
     ALL_SHARED_DATA_TYPES,
     MESSAGE_GET_LIST_PATH,
@@ -497,6 +498,24 @@ class TestOtherAggregatedMetrics:
             await client.get_steps(123, date(2024, 6, 4), days=0)
 
         client._request.assert_not_awaited()
+
+    async def test_rejects_days_above_limit(self, mock_auth: Any) -> None:
+        client = _make_client(mock_auth)
+        client._request = AsyncMock()
+
+        with pytest.raises(ValueError, match="days"):
+            await client.get_steps(123, date(2024, 6, 4), days=MAX_QUERY_DAYS + 1)
+
+        client._request.assert_not_awaited()
+
+    async def test_accepts_max_query_days(self, mock_auth: Any) -> None:
+        client = _make_client(mock_auth)
+        client._request = AsyncMock(return_value={"code": 0, "result": {"data_list": []}})
+
+        await client.get_steps(123, date(2024, 6, 4), days=MAX_QUERY_DAYS)
+
+        params = client._request.call_args.kwargs["params"]
+        assert params["limit"] == MAX_QUERY_DAYS
 
     async def test_returns_calories_valid_stand_and_intensity(self, mock_auth: Any) -> None:
         client = _make_client(mock_auth)

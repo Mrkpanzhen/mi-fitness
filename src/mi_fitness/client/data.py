@@ -51,6 +51,10 @@ if TYPE_CHECKING:
     from mi_fitness.client.api import MiHealthClient
 
 _SeriesDataT = TypeVar("_SeriesDataT")
+
+# 单次历史查询的最大天数。接口按天返回聚合数据，过大的窗口会构造超大请求，
+# 且服务端通常会截断；把上限显式化，避免调用方误传极大值时静默拿到不完整结果。
+MAX_QUERY_DAYS = 365
 _LatestMetricT = TypeVar(
     "_LatestMetricT",
     GoalData,
@@ -191,10 +195,10 @@ def _build_window_timestamps(query_date: date | None, days: int) -> tuple[int, i
     """构造以 ``query_date`` 为结束日的查询窗口。
 
     Raises:
-        ValueError: ``days`` 小于 1。
+        ValueError: ``days`` 不在 ``1..MAX_QUERY_DAYS`` 范围内。
     """
-    if days < 1:
-        raise ValueError("days 必须大于等于 1")
+    if days < 1 or days > MAX_QUERY_DAYS:
+        raise ValueError(f"days 必须在 1..{MAX_QUERY_DAYS} 之间，当前为 {days}")
     _, end = _date_to_timestamps(query_date)
     start = end - 86400 * days + 1
     return start, end, days

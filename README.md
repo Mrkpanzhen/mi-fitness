@@ -172,6 +172,8 @@ async def safe_query():
 | `get_aggregated_data(uid, key, start, end)` | `AggregatedDataResponse` | 自定义时间范围和数据类型 |
 | `get_fitness_data(uid, key, start, end)` | `AggregatedDataResponse` | 原始测量/事件数据（如体重、血压、异常心率） |
 
+> 所有 `days` 参数取值范围为 `1..365`，超出范围会抛出 `ValueError`。
+
 ### 亲友管理
 
 | 方法 | 说明 |
