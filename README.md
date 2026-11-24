@@ -16,19 +16,21 @@ pip install mi-fitness
 uv add mi-fitness
 ```
 
-如需使用终端二维码登录 CLI，请安装 `cli` 附加依赖：
+如需使用终端二维码渲染（CLI 登录）或 MCP server，请安装对应附加依赖：
 
 ```bash
-pip install "mi-fitness[cli]"
-# 或
-uv add "mi-fitness[cli]"
+pip install "mi-fitness[cli]"   # 二维码终端渲染
+pip install "mi-fitness[mcp]"   # MCP server
+pip install "mi-fitness[cli,mcp]"  # 两者都要
+# 或使用 uv
+uv add "mi-fitness[cli,mcp]"
 ```
 
 从源码安装：
 
 ```bash
 git clone https://github.com/wenxixixi-miao/mi-fitness.git && cd mi-fitness
-uv sync
+uv sync   # 已包含 cli/mcp 开发依赖
 ```
 
 ### 日志
@@ -79,10 +81,80 @@ CLI 一行命令登录：
 ```bash
 uv run python -m mi_fitness.cli qr-login
 # 或使用安装后的命令，并可自定义 token 路径
-mi-fitness-login --token token.json
+mi-fitness qr-login --token token.json
+mi-fitness-login --token token.json   # 兼容旧入口
 ```
 
-### 查询数据
+### 查询数据（命令行）
+
+登录后可直接用 CLI 查询，默认输出 JSON，便于脚本与 agent 消费：
+
+```bash
+# 列出亲友
+mi-fitness relatives
+
+# 最新数据快照（按 UID 或备注名指定亲友）
+mi-fitness latest --uid 123456
+mi-fitness latest --relative 妈妈
+
+# 按日历史：--key 必填，--days 为窗口天数（1..365）
+mi-fitness history --relative 妈妈 --key steps --days 7
+mi-fitness history --uid 123456 --key sleep --date 2024-06-04
+
+# 每日综合摘要（心率 + 睡眠 + 步数）
+mi-fitness summary --relative 妈妈 --latest
+mi-fitness summary --uid 123456 --date 2024-06-04
+
+# 表格输出（便于人工阅读）
+mi-fitness relatives --format table
+```
+
+可选参数：
+
+| 参数 | 说明 |
+|---|---|
+| `--token PATH` | token 路径，默认 `token.json`；也可用环境变量 `MI_FITNESS_TOKEN` |
+| `--format json\|table` | 输出格式，默认 `json` |
+| `--uid N` / `--relative KEYWORD` | 指定亲友；`--relative` 支持备注名子串匹配 |
+
+### MCP server（供 AI agent 调用）
+
+安装 `mcp` 附加依赖后，可把查询能力暴露给支持 MCP 的客户端：
+
+```bash
+pip install "mi-fitness[mcp]"
+# 或
+uv add "mi-fitness[mcp]"
+```
+
+配置示例（stdio 传输）：
+
+```json
+{
+  "mcpServers": {
+    "mi-fitness": {
+      "command": "mi-fitness-mcp",
+      "env": {
+        "MI_FITNESS_TOKEN": "/absolute/path/to/token.json"
+      }
+    }
+  }
+}
+```
+
+暴露 5 个工具：
+
+| 工具 | 说明 |
+|---|---|
+| `list_relatives` | 列出亲友 |
+| `get_latest_data` | 最新数据快照 |
+| `get_shared_data_types` | 亲友共享了哪些数据类型 |
+| `get_history` | 按日历史（`key` + `days`） |
+| `get_daily_summary` | 每日综合摘要（支持 `latest`） |
+
+工具均接受 `relative_uid` 或 `relative`（备注名）指定亲友。未登录时会返回可读错误，提示先执行 `mi-fitness qr-login`。
+
+### 查询数据（Python）
 
 ```python
 import asyncio

@@ -13,6 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 cli = ["qrcode>=8.0"]
+mcp = ["mcp>=1.0"]
 
 [project.urls]
 Homepage = "https://github.com/wenxixixi-miao/mi-fitness"
@@ -20,13 +21,16 @@ Issues = "https://github.com/wenxixixi-miao/mi-fitness/issues"
 Repository = "https://github.com/wenxixixi-miao/mi-fitness.git"
 
 [project.scripts]
+mi-fitness = "mi_fitness.cli:main"
 mi-fitness-login = "mi_fitness.cli:main"
+mi-fitness-mcp = "mi_fitness.mcp_server:main"
 
 [dependency-groups]
 dev = [
     "basedpyright>=1.16.0",
     "commitizen>=4.1.0",
     "git-cliff>=2.11.0,<3.0.0",
+    "mcp>=1.0",
     "prek>=0.2.0",
     "qrcode>=8.0",
     "ruff>=0.14.13,<1.0.0",
