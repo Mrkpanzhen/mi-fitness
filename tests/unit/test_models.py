@@ -87,6 +87,54 @@ class TestFamilyMember:
         assert m.relative_uid == 9999
         assert m.source_tag == 1
 
+    def test_abnormal_record_as_list_is_normalized(self) -> None:
+        """接口新版本返回数组形态，不能导致整条亲友记录解析失败。"""
+        m = FamilyMember(
+            relative_uid=1074998241,
+            relative_note="Pannnnnz",
+            latest_abnormal_record_time=[  # type: ignore[arg-type]
+                {"key": "heart_rate", "timestamp": 1791328096},
+                {"key": "spo2", "timestamp": 1791328196},
+            ],
+        )
+        assert m.latest_abnormal_record_time == 1791328196
+        assert [r.key for r in m.abnormal_records] == ["heart_rate", "spo2"]
+
+    def test_empty_abnormal_record_list(self) -> None:
+        m = FamilyMember(
+            relative_uid=1,
+            latest_abnormal_record_time=[],  # type: ignore[arg-type]
+        )
+        assert m.latest_abnormal_record_time == 0
+        assert m.abnormal_records == []
+
+    def test_abnormal_record_list_without_timestamp(self) -> None:
+        m = FamilyMember(
+            relative_uid=1,
+            latest_abnormal_record_time=[{"key": "heart_rate"}],  # type: ignore[arg-type]
+        )
+        assert m.latest_abnormal_record_time == 0
+        assert m.abnormal_records[0].key == "heart_rate"
+
+    def test_relative_list_keeps_member_with_array_field(self) -> None:
+        """数组形态不应让 RelativeListResponse 静默丢掉亲友。"""
+        resp = RelativeListResponse(
+            code=0,
+            result={
+                "relative_list": [
+                    {
+                        "relative_uid": 1074998241,
+                        "relative_note": "Pannnnnz",
+                        "latest_abnormal_record_time": [
+                            {"key": "heart_rate", "timestamp": 1791328096}
+                        ],
+                    }
+                ]
+            },
+        )
+        assert len(resp.relatives) == 1
+        assert resp.relatives[0].relative_uid == 1074998241
+
 
 class TestLatestHeartRate:
     def test_defaults(self) -> None:

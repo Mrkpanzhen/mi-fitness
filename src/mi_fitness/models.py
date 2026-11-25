@@ -8,7 +8,14 @@ from enum import IntEnum
 from functools import cached_property
 from typing import Any, TypeVar
 
-from pydantic import AliasChoices, BaseModel, Field, ValidationError, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from mi_fitness.const import (
     DATA_KEY_BLOOD_PRESSURE,
@@ -160,6 +167,18 @@ class AuthToken(BaseModel):
 
 
 # region 亲友
+class AbnormalRecord(BaseModel):
+    """亲友最近一条异常记录（来自 get_relative_list）。
+
+    Attributes:
+        key: 异常数据类型，如 ``heart_rate``。
+        timestamp: 异常记录时间戳。
+    """
+
+    key: str = ""
+    timestamp: int = 0
+
+
 class FamilyMember(BaseModel):
     """亲友信息（来自 get_relative_list 响应）。
 
@@ -169,6 +188,7 @@ class FamilyMember(BaseModel):
         relative_icon: 头像 URL。
         latest_data_time: 最新数据时间戳。
         latest_abnormal_record_time: 最新异常记录时间戳。
+        abnormal_records: 异常记录明细（接口新版本返回数组，旧版本为整数时间戳）。
         source_tag: 来源标记。
     """
 
@@ -177,7 +197,33 @@ class FamilyMember(BaseModel):
     relative_icon: str = ""
     latest_data_time: int = 0
     latest_abnormal_record_time: int | None = 0
+    abnormal_records: list[AbnormalRecord] = Field(default_factory=list)
     source_tag: int = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_abnormal_record(cls, value: Any) -> Any:
+        """兼容 ``latest_abnormal_record_time`` 的两种返回形态。
+
+        旧版本返回整数时间戳，新版本返回 ``[{"key": ..., "timestamp": ...}]``。
+        数组形态下取最大时间戳填充该字段，同时保留明细到 ``abnormal_records``。
+        """
+        if not isinstance(value, dict):
+            return value
+
+        raw = value.get("latest_abnormal_record_time")
+        if not isinstance(raw, list):
+            return value
+
+        records = [item for item in raw if isinstance(item, dict) and item.get("key")]
+        timestamps = [
+            item["timestamp"] for item in records if isinstance(item.get("timestamp"), int)
+        ]
+
+        normalized = dict(value)
+        normalized["latest_abnormal_record_time"] = max(timestamps) if timestamps else 0
+        normalized["abnormal_records"] = records
+        return normalized
 
     def __str__(self) -> str:
         return f"{self.relative_note or '未命名'} (UID: {self.relative_uid})"
