@@ -242,13 +242,15 @@ async def safe_query():
 | `get_intensity(uid)` | `IntensityData \| None` | 最新中高强度活动时长 |
 | `get_spo2(uid)` | `Spo2Data \| None` | 最新血氧 |
 | `get_latest_data(uid)` | `LatestDataSnapshot` | 强类型最新快照（goal/heart_rate/sleep/steps/weight/...） |
-| `get_latest_items(uid)` | `list[LatestDataItem]` | 原始 `data_list`，适合调试 |
-| `get_daily_summary(uid, date)` | `DailySummary` | 心率+睡眠+步数并发获取 |
+| `get_latest_items(uid)` | `list[LatestDataItem]` | 原始 `data_list`，适合调试 || `get_daily_summary(uid, date)` | `DailySummary` | 心率+睡眠+步数并发获取 |
 | `get_latest_daily_summary(uid)` | `DailySummary` | 自动使用最近一次同步日，减少空结果 |
 | `get_aggregated_data(uid, key, start, end)` | `AggregatedDataResponse` | 自定义时间范围和数据类型 |
 | `get_fitness_data(uid, key, start, end)` | `AggregatedDataResponse` | 原始测量/事件数据（如体重、血压、异常心率） |
 
 > 所有 `days` 参数取值范围为 `1..365`，超出范围会抛出 `ValueError`。
+>
+> **注意**：`get_latest_data` 的睡眠/心率/血氧只下发摘要字段（睡眠的深睡、REM、片段等为 `0` 或空），
+> 完整明细需调用 `get_sleep` / `get_heart_rate` / `get_spo2_history` 等历史接口。
 
 ### 亲友管理
 

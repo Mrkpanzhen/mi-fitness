@@ -37,6 +37,22 @@
 `weight` / `blood_pressure` / 异常心率等测量/事件级记录；日聚合指标
 （心率区间、睡眠分期等）接口本身只提供按天汇总。
 
+### `latest` 与 `history` 的字段差异（重要）
+
+两个接口返回的字段完整度不同，**要明细必须用 `history`**：
+
+| 指标 | `get_latest_data` | `get_history` |
+|---|---|---|
+| `sleep` | 仅 `total_duration`、`sleep_score`、`sleep_stage`、两个 evaluation | 完整：深浅 REM 清醒时长、睡眠期心率/血氧、**`segment_details` 片段** |
+| `heart_rate` | 仅最新一次采样 `{bpm, time}` | 日均/静息/最大最小、5 个心率区间、异常次数 |
+| `spo2` | 仅最新一次采样 `{spo2, time}` | 平均/最大/最小、偏低次数 |
+| `steps` / `calories` / `valid_stand` / `intensity` | 当日值 | 按日历史 |
+
+`get_latest_data` 里缺失的字段会显示为 `0` 或空列表，**这不代表没有数据**，
+只是该接口不下发。需要完整信息时请调用 `get_history`（或 `get_daily_summary`）。
+
+`get_latest_data` 额外提供 `goal`、`weight`、`blood_pressure` 等最新快照字段。
+
 ## 首选方式：CLI（输出 JSON）
 
 所有命令在仓库根目录执行。需要先登录一次（人工扫码）：
